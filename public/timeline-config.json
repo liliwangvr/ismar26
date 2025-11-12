@@ -1,0 +1,55 @@
+{
+  "programs": [
+    {
+      "id": "papers",
+      "name": "Papers",
+      "timePoints": [
+        { "id": "p1", "name": "Abstract Deadline", "date": "2026-03-01" },
+        { "id": "p2", "name": "Full Paper", "date": "2026-03-15" },
+        { "id": "p3", "name": "Notification", "date": "2026-04-15" },
+        { "id": "p4", "name": "Camera Ready", "date": "2026-05-01" }
+      ]
+    },
+    {
+      "id": "workshops",
+      "name": "Workshops",
+      "timePoints": [
+        { "id": "w1", "name": "Submission", "date": "2026-04-01" },
+        { "id": "w2", "name": "Notification", "date": "2026-04-20" },
+        { "id": "w3", "name": "Final Version", "date": "2026-05-10" }
+      ]
+    },
+    {
+      "id": "tutorials",
+      "name": "Tutorials",
+      "timePoints": [
+        { "id": "t1", "name": "Proposal", "date": "2026-03-10" },
+        { "id": "t2", "name": "Decision", "date": "2026-04-05" }
+      ]
+    },
+    {
+      "id": "doctoral",
+      "name": "Doctoral Consortium",
+      "timePoints": [
+        { "id": "d1", "name": "Submission", "date": "2026-04-15" },
+        { "id": "d2", "name": "Notification", "date": "2026-05-15" }
+      ]
+    },
+    {
+      "id": "demos",
+      "name": "Demos",
+      "timePoints": [
+        { "id": "dm1", "name": "Submission", "date": "2026-05-01" },
+        { "id": "dm2", "name": "Notification", "date": "2026-05-20" }
+      ]
+    },
+    {
+      "id": "posters",
+      "name": "Posters",
+      "timePoints": [
+        { "id": "po1", "name": "Submission", "date": "2026-05-10" },
+        { "id": "po2", "name": "Notification", "date": "2026-06-01" }
+      ]
+    }
+  ]
+}
