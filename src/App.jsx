@@ -155,9 +155,7 @@ function App() {
   const loadConfig = async () => {
     try {
       setErrorMessage('')
-      // const response = await fetch('/timeline-config.json')
       const response = await fetch(`${import.meta.env.BASE_URL}timeline-config.json`)
-
 
       if (!response.ok) {
         throw new Error(`Failed to load config file: HTTP ${response.status}`)
@@ -365,18 +363,29 @@ function App() {
       })
     })
 
-    // 添加 Conference 节点（只添加一次）
-    const conferenceEventDate = new Date(`${conferenceDate}T23:59:59`)
-    const now = new Date()
-    const conferenceDaysRemaining = Math.ceil((conferenceEventDate - now) / (1000 * 60 * 60 * 24))
-
-    allRows.push({
-      Program: 'Conference',
-      Event: 'Conference',
-      Date: conferenceDate,
-      'Days Remaining': conferenceDaysRemaining > 0 ? conferenceDaysRemaining : 'Past Due',
-      Color: '#000000'
+    // 添加 Conference 节点（只添加最后一个/最晚的 conference）
+    let latestConference = null
+    programs.forEach(program => {
+      if (program.conference) {
+        if (!latestConference || program.conference.date > latestConference.date) {
+          latestConference = program.conference
+        }
+      }
     })
+    
+    if (latestConference) {
+      const conferenceEventDate = new Date(`${latestConference.date.toISOString().split('T')[0]}T23:59:59`)
+      const now = new Date()
+      const conferenceDaysRemaining = Math.ceil((conferenceEventDate - now) / (1000 * 60 * 60 * 24))
+
+      allRows.push({
+        Program: 'Conference',
+        Event: latestConference.name,
+        Date: latestConference.date.toISOString().split('T')[0],
+        'Days Remaining': conferenceDaysRemaining > 0 ? conferenceDaysRemaining : 'Past Due',
+        Color: '#000000'
+      })
+    }
 
     allRows.sort((a, b) => new Date(a.Date) - new Date(b.Date))
 
@@ -508,3 +517,4 @@ function App() {
 }
 
 export default App
+
