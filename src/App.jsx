@@ -345,65 +345,73 @@ function App() {
     const workbook = XLSX.utils.book_new()
     let allRows = []
 
-    programs.forEach(program => {
+    programs.forEach((program, programIndex) => {
+      // 确保 timePoints 存在
+      if (!program.timePoints || !Array.isArray(program.timePoints)) {
+        return
+      }
+      const programColor = COLOR_POOL[programIndex % COLOR_POOL.length]
+      
       program.timePoints.forEach(tp => {
-        const programColor = COLOR_POOL[programs.indexOf(program) % COLOR_POOL.length]
-        const eventDate = new Date(`${tp.date}T23:59:59`)
-        const now = new Date()
-        const timeDiff = eventDate - now
-        const daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24))
+        // 处理 date 可能是 Date 对象或字符串的情况
+        const dateStr = tp.date instanceof Date ? tp.date.toISOString().split('T')[0] : tp.date
 
         allRows.push({
-          Program: program.name,
-          Event: tp.name,
-          Date: tp.date,
-          'Days Remaining': daysRemaining > 0 ? daysRemaining : 'Past Due',
-          Color: programColor
+          DATE: dateStr,
+          EVENT: `${program.name} - ${tp.name}`,
+          _color: programColor,
+          _order: programIndex
         })
       })
     })
 
     // 添加 Conference 节点（只添加最后一个/最晚的 conference）
     let latestConference = null
+    let conferenceDate = null
     programs.forEach(program => {
       if (program.conference) {
         if (!latestConference || program.conference.date > latestConference.date) {
           latestConference = program.conference
+          // 转换为字符串格式
+          conferenceDate = latestConference.date instanceof Date 
+            ? latestConference.date.toISOString().split('T')[0] 
+            : latestConference.date
         }
       }
     })
     
-    if (latestConference) {
-      const conferenceEventDate = new Date(`${latestConference.date.toISOString().split('T')[0]}T23:59:59`)
-      const now = new Date()
-      const conferenceDaysRemaining = Math.ceil((conferenceEventDate - now) / (1000 * 60 * 60 * 24))
-
+    if (conferenceDate) {
       allRows.push({
-        Program: 'Conference',
-        Event: latestConference.name,
-        Date: latestConference.date.toISOString().split('T')[0],
-        'Days Remaining': conferenceDaysRemaining > 0 ? conferenceDaysRemaining : 'Past Due',
-        Color: '#000000'
+        DATE: conferenceDate,
+        EVENT: 'Conference',
+        _color: '#000000',
+        _order: programs.length
       })
     }
 
-    allRows.sort((a, b) => new Date(a.Date) - new Date(b.Date))
+    // 按照程序顺序排序（即按 EVENT 分组）
+    allRows.sort((a, b) => {
+      if (a._order !== b._order) {
+        return a._order - b._order
+      }
+      return new Date(a.DATE) - new Date(b.DATE)
+    })
 
-    const worksheet = XLSX.utils.json_to_sheet(allRows)
+    // 移除用于排序的临时字段
+    const exportRows = allRows.map(({ DATE, EVENT }) => ({ DATE, EVENT }))
+    
+    const worksheet = XLSX.utils.json_to_sheet(exportRows)
 
+    // 应用颜色样式
     allRows.forEach((row, index) => {
-      const rowIndex = index + 2
-      const cellAddress = `A${rowIndex}:E${rowIndex}`
-
-      if (!worksheet['!rows']) worksheet['!rows'] = []
-      if (!worksheet['!rows'][index + 1]) worksheet['!rows'][index + 1] = {}
-
-      ['A', 'B', 'C', 'D', 'E'].forEach(col => {
+      const rowIndex = index + 2;
+      
+      ['A', 'B'].forEach(col => {
         const cellRef = `${col}${rowIndex}`
         if (worksheet[cellRef]) {
           worksheet[cellRef].s = {
             font: {
-              color: { rgb: row.Color.replace('#', '') }
+              color: { rgb: row._color.replace('#', '') }
             }
           }
         }
