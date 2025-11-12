@@ -202,7 +202,7 @@ function App() {
 
   // Group rows by program (process in order)
   const programsMap = new Map()
-        let currentProgramName = null
+        let globalConferenceDate = null // 全局 Conference 日期，作为所有 Program 的 DDL
 
         jsonData.forEach((row, index) => {
           if (!row.DATE || !row.EVENT) {
@@ -218,16 +218,8 @@ function App() {
 
           // Check if this is a Conference row
           if (row.EVENT.trim() === 'Conference') {
-            // This is a conference row and belongs to the current program
-            if (!currentProgramName) {
-              throw new Error(`Row ${index + 2} is Conference but has no corresponding Program`)
-            }
-
-            programsMap.get(currentProgramName).conference = {
-              id: `${currentProgramName.toLowerCase().replace(/\s+/g, '-')}-conference`,
-              name: 'Conference',
-              date: date
-            }
+            // Conference 是全局的，作为所有 Program 的 DDL
+            globalConferenceDate = date
           } else {
             // Parse EVENT field: format is "ProgramName - EventName"
             const eventParts = row.EVENT.split(' - ')
@@ -238,12 +230,9 @@ function App() {
             const programName = eventParts[0].trim()
             const eventName = eventParts.slice(1).join(' - ').trim()
 
-            // Update current program
-            currentProgramName = programName
-
             // Add to the corresponding program
             if (!programsMap.has(programName)) {
-              programsMap.set(programName, { events: [], conference: null })
+              programsMap.set(programName, { events: [] })
             }
 
             // This is a regular event
@@ -260,10 +249,17 @@ function App() {
           // Sort timePoints by date
           data.events.sort((a, b) => a.date - b.date)
 
-          let conferenceNode = data.conference
+          let conferenceNode = null
 
-          // If there is no conference node, auto-compute the DDL
-          if (!conferenceNode && data.events.length > 0) {
+          // 如果有全局 Conference 日期，使用它作为所有 Program 的 DDL
+          if (globalConferenceDate) {
+            conferenceNode = {
+              id: `${programName.toLowerCase().replace(/\s+/g, '-')}-conference`,
+              name: 'Conference',
+              date: globalConferenceDate
+            }
+          } else if (data.events.length > 0) {
+            // 如果没有全局 Conference，自动计算 DDL
             const lastDate = new Date(data.events[data.events.length - 1].date)
             const autoDDL = new Date(lastDate)
             autoDDL.setDate(autoDDL.getDate() + 30)
