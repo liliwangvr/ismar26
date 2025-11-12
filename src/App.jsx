@@ -155,7 +155,9 @@ function App() {
   const loadConfig = async () => {
     try {
       setErrorMessage('')
-      const response = await fetch('/timeline-config.json')
+      // const response = await fetch('/timeline-config.json')
+      const response = await fetch(`${import.meta.env.BASE_URL}timeline-config.json`)
+
 
       if (!response.ok) {
         throw new Error(`Failed to load config file: HTTP ${response.status}`)
