@@ -1,54 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import TimeLine from './TimeLine'
-import Login from './Login'
-import './App.css'
 import * as XLSX from 'xlsx-js-style'
 
-const COLOR_POOL = [
-  '#e74c3c',
-  '#3498db',
-  '#2ecc71',
-  '#f39c12',
-  '#9b59b6',
-  '#1abc9c',
-  '#e67e22',
-  '#34495e'
-]
-
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
   const [programs, setPrograms] = useState([])
-  const [today] = useState(new Date())
-  const [currentAoETime, setCurrentAoETime] = useState('')
+  const [today, setToday] = useState(new Date())
   const [errorMessage, setErrorMessage] = useState('')
-  const fileInputRef = useRef(null)
+  const [isLocked, setIsLocked] = useState(false)
 
-  const getCurrentAoETime = () => {
-    const now = new Date()
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000)
-    const aoeTime = new Date(utc - (12 * 60 * 60 * 1000))
-
-    const year = aoeTime.getFullYear()
-    const month = String(aoeTime.getMonth() + 1).padStart(2, '0')
-    const day = String(aoeTime.getDate()).padStart(2, '0')
-    const hours = String(aoeTime.getHours()).padStart(2, '0')
-    const minutes = String(aoeTime.getMinutes()).padStart(2, '0')
-    const seconds = String(aoeTime.getSeconds()).padStart(2, '0')
-
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-  }
-
-  useEffect(() => {
-    const updateTime = () => {
-      setCurrentAoETime(getCurrentAoETime())
-    }
-
-    updateTime()
-    const timer = setInterval(updateTime, 1000)
-
-    return () => clearInterval(timer)
-  }, [])
 
   const processConfig = (config) => {
     if (!config || typeof config !== 'object') {
@@ -105,39 +64,12 @@ function App() {
         }
       })
 
-      // Handle conference (DDL) node
-      let conferenceNode = null
-      if (p.conference) {
-        if (!p.conference.name || typeof p.conference.name !== 'string') {
-          throw new Error(`Program "${p.name}" conference is missing a valid name field`)
-        }
-        if (!p.conference.date) {
-          throw new Error(`Program "${p.name}" conference is missing the date field`)
-        }
-
-        const conferenceDate = new Date(p.conference.date)
-        if (isNaN(conferenceDate.getTime())) {
-          throw new Error(`Program "${p.name}" conference has invalid date format: "${p.conference.date}"`)
-        }
-
-        conferenceNode = {
-          id: `${p.id}-conference`,
-          name: p.conference.name,
-          date: conferenceDate
-        }
-      } else {
-        // If no conference field, automatically compute DDL
-        if (timePoints.length > 0) {
-          const lastDate = new Date(timePoints[timePoints.length - 1].date)
-          const autoDDL = new Date(lastDate)
-          autoDDL.setDate(autoDDL.getDate() + ddlGapDays)
-
-          conferenceNode = {
-            id: `${p.id}-conference`,
-            name: 'Conference',
-            date: autoDDL
-          }
-        }
+      // Handle conference (DDL) node - Fixed to 2026-10-05
+      const fixedConferenceDate = new Date('2026-10-05')
+      const conferenceNode = {
+        id: `${p.id}-conference`,
+        name: 'Conference',
+        date: fixedConferenceDate
       }
 
       return {
@@ -155,7 +87,7 @@ function App() {
   const loadConfig = async () => {
     try {
       setErrorMessage('')
-      const response = await fetch(`${import.meta.env.BASE_URL}timeline-config.json`)
+      const response = await fetch('/timeline-config.json')
 
       if (!response.ok) {
         throw new Error(`Failed to load config file: HTTP ${response.status}`)
@@ -164,166 +96,30 @@ function App() {
       const config = await response.json()
       const loadedPrograms = processConfig(config)
       setPrograms(loadedPrograms)
+
+      // Set today to 15 days before the first event of the first program
+      if (loadedPrograms.length > 0 && loadedPrograms[0].timePoints.length > 0) {
+        const firstEventDate = new Date(loadedPrograms[0].timePoints[0].date)
+        const newToday = new Date(firstEventDate)
+        newToday.setDate(newToday.getDate() - 15)
+        setToday(newToday)
+      }
     } catch (error) {
       console.error('Failed to load config file:', error)
       setErrorMessage(`Load failed: ${error.message}`)
     }
   }
 
-  // Import data from Excel
-  const handleExcelUpload = (event) => {
-    const file = event.target.files[0]
-    if (!file) return
-
-    setErrorMessage('')
-    const reader = new FileReader()
-
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target.result)
-        const workbook = XLSX.read(data, { type: 'array' })
-
-  // Read the first worksheet
-  const sheetName = workbook.SheetNames[0]
-  const worksheet = workbook.Sheets[sheetName]
-
-  // Convert worksheet to JSON
-  const jsonData = XLSX.utils.sheet_to_json(worksheet)
-
-        if (!jsonData || jsonData.length === 0) {
-          throw new Error('Excel file is empty or has invalid format')
-        }
-
-        // Validate required columns
-        const firstRow = jsonData[0]
-        if (!firstRow.DATE || !firstRow.EVENT) {
-          throw new Error('Excel file must contain DATE and EVENT columns')
-        }
-
-  // Group rows by program (process in order)
-  const programsMap = new Map()
-        let globalConferenceDate = null // 全局 Conference 日期，作为所有 Program 的 DDL
-
-        jsonData.forEach((row, index) => {
-          if (!row.DATE || !row.EVENT) {
-            console.warn(`Skipping row ${index + 2}: missing required fields`)
-            return
-          }
-
-          // Parse date
-          const date = new Date(row.DATE)
-          if (isNaN(date.getTime())) {
-            throw new Error(`Invalid date format on row ${index + 2}: "${row.DATE}"`)
-          }
-
-          // Check if this is a Conference row
-          if (row.EVENT.trim() === 'Conference') {
-            // Conference 是全局的，作为所有 Program 的 DDL
-            globalConferenceDate = date
-          } else {
-            // Parse EVENT field: format is "ProgramName - EventName"
-            const eventParts = row.EVENT.split(' - ')
-            if (eventParts.length < 2) {
-              throw new Error(`Invalid EVENT format on row ${index + 2}; expected "ProgramName - EventName" or "Conference"`)
-            }
-
-            const programName = eventParts[0].trim()
-            const eventName = eventParts.slice(1).join(' - ').trim()
-
-            // Add to the corresponding program
-            if (!programsMap.has(programName)) {
-              programsMap.set(programName, { events: [] })
-            }
-
-            // This is a regular event
-            programsMap.get(programName).events.push({
-              id: `${programName.toLowerCase().replace(/\s+/g, '-')}-${index}`,
-              name: eventName,
-              date: date
-            })
-          }
-        })
-
-        // Convert to the format required by the app
-        const loadedPrograms = Array.from(programsMap.entries()).map(([programName, data], index) => {
-          // Sort timePoints by date
-          data.events.sort((a, b) => a.date - b.date)
-
-          let conferenceNode = null
-
-          // 如果有全局 Conference 日期，使用它作为所有 Program 的 DDL
-          if (globalConferenceDate) {
-            conferenceNode = {
-              id: `${programName.toLowerCase().replace(/\s+/g, '-')}-conference`,
-              name: 'Conference',
-              date: globalConferenceDate
-            }
-          } else if (data.events.length > 0) {
-            // 如果没有全局 Conference，自动计算 DDL
-            const lastDate = new Date(data.events[data.events.length - 1].date)
-            const autoDDL = new Date(lastDate)
-            autoDDL.setDate(autoDDL.getDate() + 30)
-
-            conferenceNode = {
-              id: `${programName.toLowerCase().replace(/\s+/g, '-')}-conference`,
-              name: 'Conference',
-              date: autoDDL
-            }
-          }
-
-          return {
-            id: programName.toLowerCase().replace(/\s+/g, '-'),
-            name: programName,
-            timePoints: data.events,
-            conference: conferenceNode,
-            ddl: conferenceNode ? conferenceNode.date : null
-          }
-        })
-
-        setPrograms(loadedPrograms)
-        } catch (error) {
-        console.error('Excel parsing failed:', error)
-        setErrorMessage(`Excel parsing failed: ${error.message}`)
-      }
-    }
-
-    reader.onerror = () => {
-      setErrorMessage('File read failed, please try again')
-    }
-
-    reader.readAsArrayBuffer(file)
-  }
-
-  // Trigger file input
-  const triggerFileInput = () => {
-    fileInputRef.current?.click()
-  }
 
   // Initial load
   useEffect(() => {
     loadConfig()
   }, [])
 
-  // 检查登录状态
-  useEffect(() => {
-    const authStatus = localStorage.getItem('isAuthenticated')
-    setIsAuthenticated(authStatus === 'true')
-    setIsLoading(false)
-  }, [])
-
-  // 登录处理
-  const handleLogin = (status) => {
-    setIsAuthenticated(status)
-  }
-
-  // 登出处理
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated')
-    setIsAuthenticated(false)
-  }
-
   // Update the date of a time point
   const updateTimePointDate = (programId, timePointId, newDate) => {
+    if (isLocked) return // Don't allow changes when locked
+
     setPrograms(programs.map(p => {
       if (p.id === programId) {
         return {
@@ -337,159 +133,161 @@ function App() {
     }))
   }
 
+  // 16-color text palette (dark colors, suitable for white background)
+  const COLOR_POOL = [
+    'DC143C', // crimson
+    '1E90FF', // dodger blue
+    '228B22', // forest green
+    'FF8C00', // dark orange
+    '9370De', // medium purple
+    'FF1493', // deep pink
+    '00CED1', // dark turquoise
+    'DAA520', // goldenrod
+    'C71585', // medium violet red
+    '32CD32', // lime green
+    'BA55D3', // medium orchid
+    'FF6347', // tomato
+    '4169E1', // royal blue
+    '9ACD32', // yellow green
+    'FF69B4', // hot pink
+    '4682B4'  // steel blue
+  ]
+
+  // Export to Excel (two-column format, colored, grouped by program)
   const exportToExcel = () => {
-    const workbook = XLSX.utils.book_new()
-    let allRows = []
+  // Prepare dataRows (in program order, no extra sorting)
+    const dataRows = []
 
-    programs.forEach((program, programIndex) => {
-      // 确保 timePoints 存在
-      if (!program.timePoints || !Array.isArray(program.timePoints)) {
-        return
-      }
-      const programColor = COLOR_POOL[programIndex % COLOR_POOL.length]
-      
-      program.timePoints.forEach(tp => {
-        // 处理 date 可能是 Date 对象或字符串的情况
-        const dateStr = tp.date instanceof Date ? tp.date.toISOString().split('T')[0] : tp.date
+    programs.forEach((p, programIndex) => {
+      const color = COLOR_POOL[programIndex % COLOR_POOL.length]
 
-        allRows.push({
-          DATE: dateStr,
-          EVENT: `${program.name} - ${tp.name}`,
-          _color: programColor,
-          _order: programIndex
+  // Add regular events
+      p.timePoints.forEach(tp => {
+        dataRows.push({
+          date: tp.date,
+          event: `${p.name} - ${tp.name}`,
+          color: color
         })
       })
     })
 
-    // 添加 Conference 节点（只添加最后一个/最晚的 conference）
-    let latestConference = null
-    let conferenceDate = null
-    programs.forEach(program => {
-      if (program.conference) {
-        if (!latestConference || program.conference.date > latestConference.date) {
-          latestConference = program.conference
-          // 转换为字符串格式
-          conferenceDate = latestConference.date instanceof Date 
-            ? latestConference.date.toISOString().split('T')[0] 
-            : latestConference.date
-        }
-      }
-    })
-    
-    if (conferenceDate) {
-      allRows.push({
-        DATE: conferenceDate,
-        EVENT: 'Conference',
-        _color: '#000000',
-        _order: programs.length
+    // Add single conference node at the end (use the last program's conference)
+    const lastProgram = programs[programs.length - 1]
+    if (lastProgram && lastProgram.conference) {
+      dataRows.push({
+        date: lastProgram.conference.date,
+        event: 'Conference',
+        color: '000000'  // Use black color for Conference
       })
     }
 
-    // 按照程序顺序排序（即按 EVENT 分组）
-    allRows.sort((a, b) => {
-      if (a._order !== b._order) {
-        return a._order - b._order
+    // Create worksheet data (including header row)
+    const wsData = [
+      ['DATE', 'EVENT'], // header row
+      ...dataRows.map(row => [
+        row.date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        }),
+        row.event
+      ])
+    ]
+
+  // Create worksheet
+  const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 20 }, // DATE column width
+      { wch: 50 }  // EVENT column width
+    ]
+
+  // Set header row style (dark background, white text, bold)
+    const headerStyle = {
+      font: { bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: '2C3E50' } },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: {
+        top: { style: 'thin', color: { rgb: '000000' } },
+        bottom: { style: 'thin', color: { rgb: '000000' } },
+        left: { style: 'thin', color: { rgb: '000000' } },
+        right: { style: 'thin', color: { rgb: '000000' } }
       }
-      return new Date(a.DATE) - new Date(b.DATE)
-    })
+    }
 
-    // 移除用于排序的临时字段
-    const exportRows = allRows.map(({ DATE, EVENT }) => ({ DATE, EVENT }))
-    
-    const worksheet = XLSX.utils.json_to_sheet(exportRows)
+    ws['A1'].s = headerStyle
+    ws['B1'].s = headerStyle
 
-    // 应用颜色样式
-    allRows.forEach((row, index) => {
-      const rowIndex = index + 2;
-      
-      ['A', 'B'].forEach(col => {
-        const cellRef = `${col}${rowIndex}`
-        if (worksheet[cellRef]) {
-          worksheet[cellRef].s = {
-            font: {
-              color: { rgb: row._color.replace('#', '') }
-            }
-          }
+  // Apply style to each data row
+    dataRows.forEach((row, index) => {
+      const rowNum = index + 2 // +2 because Excel rows start at 1 and there's a header row
+
+      const cellStyle = {
+        font: { color: { rgb: row.color } },
+        alignment: { horizontal: 'left', vertical: 'center' },
+        border: {
+          top: { style: 'thin', color: { rgb: 'CCCCCC' } },
+          bottom: { style: 'thin', color: { rgb: 'CCCCCC' } },
+          left: { style: 'thin', color: { rgb: 'CCCCCC' } },
+          right: { style: 'thin', color: { rgb: 'CCCCCC' } }
         }
-      })
+      }
+
+      const dateCell = `A${rowNum}`
+      const eventCell = `B${rowNum}`
+
+      if (ws[dateCell]) ws[dateCell].s = cellStyle
+      if (ws[eventCell]) ws[eventCell].s = cellStyle
     })
 
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Timeline')
-    XLSX.writeFile(workbook, 'timeline_export.xlsx')
+  // Create workbook and export
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Timeline')
+    XLSX.writeFile(wb, 'timeline-export.xlsx')
   }
 
-  const refreshPage = () => {
-    window.location.reload()
-  }
-
-  // 加载状态
-  if (isLoading) {
-    return (
-      <div className="loading-container">
-        <div className="loading-spinner"></div>
-      </div>
-    )
-  }
-
-  // 未登录状态
-  if (!isAuthenticated) {
-    return <Login onLogin={handleLogin} />
-  }
-
-  const formatCurrentTime = (time) => {
-    return time.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      timeZone: 'Asia/Shanghai'
-    })
-  }
-
-  // Assign colors to programs
+  // Assign a color to each program based on its index
   const programsWithColors = programs.map((program, index) => ({
     ...program,
-    color: COLOR_POOL[index % COLOR_POOL.length].replace('#', '')
-  }))
+    color: COLOR_POOL[index % COLOR_POOL.length],
+  }));
 
   return (
     <div className="app">
-      <div className="title-container">
-        <h1 className="main-title">Time Deadlines (AoE)</h1>        <div className="info-icon-wrapper">
-          <span className="info-icon">i</span>
-          <div className="info-tooltip">
-            <div className="tooltip-item">
-              drag or double-click to adjust date
+      <div className="header-container">
+        <div className="title-section">
+          <h1 className="main-title">Time Deadlines(AoE)</h1>
+          <div className="info-icon-wrapper">
+            <div className="info-icon">i</div>
+            <div className="info-tooltip">
+              <div className="tooltip-item">
+                <strong>Dragg:</strong> Drag red nodes to adjust the date
+              </div>
+              <div className="tooltip-item">
+                <strong>Double-click:</strong> Double-click red nodes to enter a specific date
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      
-      <div className="controls-container">
         <div className="header-actions">
           <button className="refresh-btn" onClick={loadConfig}>
-            Back to default
+            Restore
           </button>
-          <button className="refresh-btn" onClick={triggerFileInput}>
-            Import Excel
+          <button className="export-btn" onClick={exportToExcel}>
+            Export
           </button>
-          <button onClick={exportToExcel} className="export-btn">
-            Export Excel
-          </button>
+          {isLocked ? (
+            <button className="unlock-btn" onClick={() => setIsLocked(false)}>
+              Unlock
+            </button>
+          ) : (
+            <button className="lock-btn" onClick={() => setIsLocked(true)}>
+              Lock
+            </button>
+          )}
         </div>
-
       </div>
-
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".xlsx,.xls"
-        onChange={handleExcelUpload}
-        style={{ display: 'none' }}
-      />
 
       {/* Error message display */}
       {errorMessage && (
@@ -498,18 +296,15 @@ function App() {
         </div>
       )}
 
-      <div className="today-info">
-        <strong>Current AoE Time:</strong>{' '}
-        <span className="date">{currentAoETime}</span>
-      </div>
-
       <div className="timeline-container">
-        {programsWithColors.map((program) => (
+        {programsWithColors.map((program, index) => (
           <TimeLine
             key={program.id}
             program={program}
             today={today}
-            color={program.color}
+            color={program.color} // Pass the color to TimeLine
+            isLocked={isLocked} // Pass the lock state to TimeLine
+            isFirst={index === 0} // Pass whether this is the first program
             onTimePointChange={(timePointId, newDate) =>
               updateTimePointDate(program.id, timePointId, newDate)
             }
@@ -521,4 +316,3 @@ function App() {
 }
 
 export default App
-
