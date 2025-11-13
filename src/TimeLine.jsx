@@ -167,9 +167,7 @@ function TimePoint({ timePoint, position, today, ddl, canDrag, onDateChange, pix
             />
           ) : (
             <div className="point-info-line" style={{ color: `#${color}` }}>
-              {/* <span className="point-name">{timePoint.name}</span> */
-              <span className="point-name">{isConference ? '' :
-           +  timePoint.name}</span>}
+              <span className="point-name">{isConference ? '' : timePoint.name}</span>
               <span className="point-date">
                 {timePoint.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </span>
