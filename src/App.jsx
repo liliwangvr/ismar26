@@ -81,7 +81,7 @@ function App() {
       })
 
       // Handle conference (DDL) node - Fixed to 2026-10-05
-      const fixedConferenceDate = new Date('2026-10-05')
+      const fixedConferenceDate = new Date('2026-08-31')
       const conferenceNode = {
         id: `${p.id}-conference`,
         name: 'Conference',
