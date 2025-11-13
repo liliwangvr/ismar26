@@ -19,13 +19,26 @@ function TimePoint({ timePoint, position, today, ddl, canDrag, onDateChange, pix
 
   // Clamp date between today and DDL, and avoid crossing adjacent nodes
   const clampDate = (date) => {
-    const todayTime = new Date(today)
-    todayTime.setHours(0, 0, 0, 0)
-    const ddlTime = new Date(ddl)
-    ddlTime.setHours(0, 0, 0, 0)
+    // Use UTC time to avoid timezone issues
+    const todayTime = new Date(Date.UTC(
+      today.getUTCFullYear(),
+      today.getUTCMonth(),
+      today.getUTCDate(),
+      12, 0, 0
+    ))
+    const ddlTime = new Date(Date.UTC(
+      ddl.getUTCFullYear(),
+      ddl.getUTCMonth(),
+      ddl.getUTCDate(),
+      12, 0, 0
+    ))
 
-    const dateTime = new Date(date)
-    dateTime.setHours(0, 0, 0, 0)
+    const dateTime = new Date(Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      12, 0, 0
+    ))
 
   // Basic constraint: cannot go beyond today and DDL
     let clampedDate = dateTime
@@ -34,16 +47,24 @@ function TimePoint({ timePoint, position, today, ddl, canDrag, onDateChange, pix
 
   // Order constraint: cannot cross the previous node
     if (prevDate) {
-      const prevTime = new Date(prevDate)
-      prevTime.setHours(0, 0, 0, 0)
+      const prevTime = new Date(Date.UTC(
+        prevDate.getUTCFullYear(),
+        prevDate.getUTCMonth(),
+        prevDate.getUTCDate(),
+        12, 0, 0
+      ))
   // Current node cannot be earlier than previous node (0-day buffer, same day allowed)
       if (clampedDate < prevTime) clampedDate = prevTime
     }
 
   // Order constraint: cannot cross the next node
     if (nextDate) {
-      const nextTime = new Date(nextDate)
-      nextTime.setHours(0, 0, 0, 0)
+      const nextTime = new Date(Date.UTC(
+        nextDate.getUTCFullYear(),
+        nextDate.getUTCMonth(),
+        nextDate.getUTCDate(),
+        12, 0, 0
+      ))
   // Current node cannot be later than next node (0-day buffer, same day allowed)
       if (clampedDate > nextTime) clampedDate = nextTime
     }
@@ -67,8 +88,13 @@ function TimePoint({ timePoint, position, today, ddl, canDrag, onDateChange, pix
     const deltaX = e.clientX - dragStartX.current
     const daysChange = Math.round(deltaX / pixelsPerDay) // Calculate day change based on pixelsPerDay
 
-    const newDate = new Date(dragStartDate.current)
-    newDate.setDate(newDate.getDate() + daysChange)
+    // Use UTC to avoid timezone issues
+    const newDate = new Date(Date.UTC(
+      dragStartDate.current.getUTCFullYear(),
+      dragStartDate.current.getUTCMonth(),
+      dragStartDate.current.getUTCDate() + daysChange,
+      12, 0, 0
+    ))
 
   // Clamp between today and DDL
     const clampedDate = clampDate(newDate)
@@ -89,8 +115,10 @@ function TimePoint({ timePoint, position, today, ddl, canDrag, onDateChange, pix
   // Handle date input
   const handleDateSubmit = () => {
     if (editValue) {
-  const newDate = new Date(editValue)
-  // Clamp between today and DDL
+      // Parse date as UTC to avoid timezone issues
+      const [year, month, day] = editValue.split('-').map(Number)
+      const newDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0))
+      // Clamp between today and DDL
       const clampedDate = clampDate(newDate)
       onDateChange(clampedDate)
     }
@@ -181,10 +209,19 @@ function TimePoint({ timePoint, position, today, ddl, canDrag, onDateChange, pix
 
 // Compute number of days between two dates
 function getDaysBetween(date1, date2) {
-  const d1 = new Date(date1)
-  const d2 = new Date(date2)
-  d1.setHours(0, 0, 0, 0)
-  d2.setHours(0, 0, 0, 0)
+  // Use UTC time to avoid timezone issues
+  const d1 = new Date(Date.UTC(
+    date1.getUTCFullYear(),
+    date1.getUTCMonth(),
+    date1.getUTCDate(),
+    12, 0, 0
+  ))
+  const d2 = new Date(Date.UTC(
+    date2.getUTCFullYear(),
+    date2.getUTCMonth(),
+    date2.getUTCDate(),
+    12, 0, 0
+  ))
   return Math.ceil(Math.abs((d2 - d1) / (1000 * 60 * 60 * 24)))
 }
 
@@ -240,10 +277,19 @@ function TimeLine({ program, today, onTimePointChange, isLocked = false, isFirst
       return { positions: [], width: containerWidth, todayPos: START_OFFSET, ddlPos: containerWidth - END_OFFSET, pixelsPerDay: 1 }
     }
 
-    const todayTime = new Date(today)
-    todayTime.setHours(0, 0, 0, 0)
-    const ddlTime = new Date(program.ddl)
-    ddlTime.setHours(0, 0, 0, 0)
+    // Use UTC time to avoid timezone issues
+    const todayTime = new Date(Date.UTC(
+      today.getUTCFullYear(),
+      today.getUTCMonth(),
+      today.getUTCDate(),
+      12, 0, 0
+    ))
+    const ddlTime = new Date(Date.UTC(
+      program.ddl.getUTCFullYear(),
+      program.ddl.getUTCMonth(),
+      program.ddl.getUTCDate(),
+      12, 0, 0
+    ))
 
   // Total days on timeline (from today to DDL)
     const totalDays = Math.max(1, (ddlTime - todayTime) / (1000 * 60 * 60 * 24))
@@ -264,8 +310,12 @@ function TimeLine({ program, today, onTimePointChange, isLocked = false, isFirst
 
   // Compute position for each time point (relative to today)
     const positions = program.timePoints.map(tp => {
-      const tpTime = new Date(tp.date)
-      tpTime.setHours(0, 0, 0, 0)
+      const tpTime = new Date(Date.UTC(
+        tp.date.getUTCFullYear(),
+        tp.date.getUTCMonth(),
+        tp.date.getUTCDate(),
+        12, 0, 0
+      ))
       const daysSinceToday = (tpTime - todayTime) / (1000 * 60 * 60 * 24)
       return START_OFFSET + daysSinceToday * PIXELS_PER_DAY
     })
