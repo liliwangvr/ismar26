@@ -34,8 +34,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Update timeline configuration via Lock button
-
-🤖 Auto-updated by GitHub Actions"
+            git commit -m "Update timeline configuration via Lock button Auto-updated by GitHub Actions"
             git push
           fi
