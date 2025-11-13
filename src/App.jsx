@@ -183,7 +183,20 @@ function App() {
       
       program.timePoints.forEach(tp => {
         // 处理 date 可能是 Date 对象或字符串的情况
-        const dateStr = tp.date instanceof Date ? tp.date.toISOString().split('T')[0] : tp.date
+        let dateStr
+        if (tp.date instanceof Date) {
+          // 使用 UTC 格式化日期，保持 AoE 时间标准
+          // 通过设置时间为中午12点UTC，避免时区边界问题
+          const utcDate = new Date(Date.UTC(
+            tp.date.getFullYear(),
+            tp.date.getMonth(),
+            tp.date.getDate(),
+            12, 0, 0
+          ))
+          dateStr = utcDate.toISOString().split('T')[0]
+        } else {
+          dateStr = tp.date
+        }
 
         allRows.push({
           DATE: dateStr,
@@ -201,10 +214,18 @@ function App() {
       if (program.conference) {
         if (!latestConference || program.conference.date > latestConference.date) {
           latestConference = program.conference
-          // 转换为字符串格式
-          conferenceDate = latestConference.date instanceof Date 
-            ? latestConference.date.toISOString().split('T')[0] 
-            : latestConference.date
+          // 转换为字符串格式，使用 UTC 保持 AoE 时间标准
+          if (latestConference.date instanceof Date) {
+            const utcDate = new Date(Date.UTC(
+              latestConference.date.getFullYear(),
+              latestConference.date.getMonth(),
+              latestConference.date.getDate(),
+              12, 0, 0
+            ))
+            conferenceDate = utcDate.toISOString().split('T')[0]
+          } else {
+            conferenceDate = latestConference.date
+          }
         }
       }
     })
@@ -273,11 +294,20 @@ function App() {
         programs: programs.map(p => ({
           id: p.id,
           name: p.name,
-          timePoints: p.timePoints.map(tp => ({
-            id: tp.id,
-            name: tp.name,
-            date: tp.date.toISOString().split('T')[0]
-          }))
+          timePoints: p.timePoints.map(tp => {
+            // 使用 UTC 格式化，保持 AoE 时间标准
+            const utcDate = new Date(Date.UTC(
+              tp.date.getFullYear(),
+              tp.date.getMonth(),
+              tp.date.getDate(),
+              12, 0, 0
+            ))
+            return {
+              id: tp.id,
+              name: tp.name,
+              date: utcDate.toISOString().split('T')[0]
+            }
+          })
         }))
       }
 
