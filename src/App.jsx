@@ -360,7 +360,7 @@ function App() {
         throw new Error(`GitHub API error: ${response.status} ${response.statusText}`)
       }
 
-      alert('✅ Configuration saved successfully!\n\nThe timeline-config.json file will be updated in a moment.\nYou can check the progress in the Actions tab of your GitHub repository.')
+      alert('✅ Configuration saved successfully!\n\nStatic page cache takes time to update. Please wait 3-5 minutes before refreshing.\nIf the changes do not appear, please clear your browser cache and try again.')
       setIsLocked(true)
     } catch (error) {
       console.error('Failed to save to GitHub:', error)
