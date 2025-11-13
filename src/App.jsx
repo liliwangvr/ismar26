@@ -115,11 +115,14 @@ function App() {
 
       // Set today to 15 days before the first event of the first program
       if (loadedPrograms.length > 0 && loadedPrograms[0].timePoints.length > 0) {
-        const firstEventDate = new Date(loadedPrograms[0].timePoints[0].date)
-        const newToday = new Date(firstEventDate)
-        newToday.setDate(newToday.getDate() - 15)
-        setToday(newToday)
+        // const firstEventDate = new Date(loadedPrograms[0].timePoints[0].date)
+        // const newToday = new Date(firstEventDate)
+        // newToday.setDate(newToday.getDate() - 15)
+        // setToday(newToday)
+        setToday(new Date('2026-03-01'))
       }
+
+      
     } catch (error) {
       console.error('Failed to load config file:', error)
       setErrorMessage(`Load failed: ${error.message}`)
