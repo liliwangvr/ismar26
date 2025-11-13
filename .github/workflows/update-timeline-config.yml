@@ -1,0 +1,41 @@
+name: Update Timeline Config
+
+on:
+  workflow_dispatch:
+    inputs:
+      config_data:
+        description: 'Timeline configuration data in JSON format'
+        required: true
+        type: string
+
+jobs:
+  update-config:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update timeline-config.json
+        run: |
+          echo '${{ github.event.inputs.config_data }}' > public/timeline-config.json
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add public/timeline-config.json
+
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update timeline configuration via Lock button
+
+🤖 Auto-updated by GitHub Actions"
+            git push
+          fi
