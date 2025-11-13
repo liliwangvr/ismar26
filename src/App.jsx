@@ -303,9 +303,26 @@ function App() {
       )
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+
         if (response.status === 401) {
           throw new Error('Invalid GitHub token. Please check the VITE_GITHUB_TOKEN in repository secrets.')
         }
+
+        if (response.status === 422) {
+          console.error('GitHub API 422 Error details:', errorData)
+          throw new Error(
+            `GitHub API 422 Error - Possible causes:\n\n` +
+            `1. Workflow file not found in repository\n` +
+            `   → Make sure '.github/workflows/update-timeline-config.yml' exists in ${owner}/${repo}\n\n` +
+            `2. Wrong branch name (currently trying: 'main')\n` +
+            `   → Check if your default branch is 'master' instead\n\n` +
+            `3. Token missing 'workflow' permission\n` +
+            `   → Token needs both 'repo' and 'workflow' scopes\n\n` +
+            `Error details: ${errorData.message || 'No additional info'}`
+          )
+        }
+
         throw new Error(`GitHub API error: ${response.status} ${response.statusText}`)
       }
 
