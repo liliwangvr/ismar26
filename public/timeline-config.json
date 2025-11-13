@@ -7,32 +7,32 @@
         {
           "id": "p1",
           "name": "Abstracts",
-          "date": "2026-02-21"
+          "date": "2026-03-08"
         },
         {
           "id": "p2",
           "name": "Full papers",
-          "date": "2026-02-21"
+          "date": "2026-03-15"
         },
         {
           "id": "p3",
           "name": "Initial notification",
-          "date": "2026-02-21"
+          "date": "2026-05-07"
         },
         {
           "id": "p4",
           "name": "Revise & Resubmit (or rebuttal)",
-          "date": "2026-02-21"
+          "date": "2026-05-21"
         },
         {
           "id": "p5",
           "name": "Final notification",
-          "date": "2026-05-21"
+          "date": "2026-06-28"
         },
         {
           "id": "p6",
           "name": "Camera-ready",
-          "date": "2026-10-04"
+          "date": "2026-07-06"
         }
       ]
     },
