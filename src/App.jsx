@@ -1,12 +1,28 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import TimeLine from './TimeLine'
+import Login from './Login'
+import './App.css'
 import * as XLSX from 'xlsx-js-style'
 
+const COLOR_POOL = [
+  '#e74c3c',
+  '#3498db',
+  '#2ecc71',
+  '#f39c12',
+  '#9b59b6',
+  '#1abc9c',
+  '#e67e22',
+  '#34495e'
+]
+
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [programs, setPrograms] = useState([])
   const [today, setToday] = useState(new Date())
   const [errorMessage, setErrorMessage] = useState('')
   const [isLocked, setIsLocked] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
 
   const processConfig = (config) => {
@@ -87,8 +103,8 @@ function App() {
   const loadConfig = async () => {
     try {
       setErrorMessage('')
-      //const response = await fetch('/timeline-config.json')
       const response = await fetch(`${import.meta.env.BASE_URL}timeline-config.json`)
+
       if (!response.ok) {
         throw new Error(`Failed to load config file: HTTP ${response.status}`)
       }
@@ -116,6 +132,24 @@ function App() {
     loadConfig()
   }, [])
 
+  // 检查登录状态
+  useEffect(() => {
+    const authStatus = localStorage.getItem('isAuthenticated')
+    setIsAuthenticated(authStatus === 'true')
+    setIsLoading(false)
+  }, [])
+
+  // 登录处理
+  const handleLogin = (status) => {
+    setIsAuthenticated(status)
+  }
+
+  // 登出处理
+  const handleLogout = () => {
+    localStorage.removeItem('isAuthenticated')
+    setIsAuthenticated(false)
+  }
+
   // Update the date of a time point
   const updateTimePointDate = (programId, timePointId, newDate) => {
     if (isLocked) return // Don't allow changes when locked
@@ -133,125 +167,189 @@ function App() {
     }))
   }
 
-  // 16-color text palette (dark colors, suitable for white background)
-  const COLOR_POOL = [
-    'DC143C', // crimson
-    '1E90FF', // dodger blue
-    '228B22', // forest green
-    'FF8C00', // dark orange
-    '9370De', // medium purple
-    'FF1493', // deep pink
-    '00CED1', // dark turquoise
-    'DAA520', // goldenrod
-    'C71585', // medium violet red
-    '32CD32', // lime green
-    'BA55D3', // medium orchid
-    'FF6347', // tomato
-    '4169E1', // royal blue
-    '9ACD32', // yellow green
-    'FF69B4', // hot pink
-    '4682B4'  // steel blue
-  ]
-
-  // Export to Excel (two-column format, colored, grouped by program)
   const exportToExcel = () => {
-  // Prepare dataRows (in program order, no extra sorting)
-    const dataRows = []
+    const workbook = XLSX.utils.book_new()
+    let allRows = []
 
-    programs.forEach((p, programIndex) => {
-      const color = COLOR_POOL[programIndex % COLOR_POOL.length]
+    programs.forEach((program, programIndex) => {
+      // 确保 timePoints 存在
+      if (!program.timePoints || !Array.isArray(program.timePoints)) {
+        return
+      }
+      const programColor = COLOR_POOL[programIndex % COLOR_POOL.length]
+      
+      program.timePoints.forEach(tp => {
+        // 处理 date 可能是 Date 对象或字符串的情况
+        const dateStr = tp.date instanceof Date ? tp.date.toISOString().split('T')[0] : tp.date
 
-  // Add regular events
-      p.timePoints.forEach(tp => {
-        dataRows.push({
-          date: tp.date,
-          event: `${p.name} - ${tp.name}`,
-          color: color
+        allRows.push({
+          DATE: dateStr,
+          EVENT: `${program.name} - ${tp.name}`,
+          _color: programColor,
+          _order: programIndex
         })
       })
     })
 
-    // Add single conference node at the end (use the last program's conference)
-    const lastProgram = programs[programs.length - 1]
-    if (lastProgram && lastProgram.conference) {
-      dataRows.push({
-        date: lastProgram.conference.date,
-        event: 'Conference',
-        color: '000000'  // Use black color for Conference
+    // 添加 Conference 节点（只添加最后一个/最晚的 conference）
+    let latestConference = null
+    let conferenceDate = null
+    programs.forEach(program => {
+      if (program.conference) {
+        if (!latestConference || program.conference.date > latestConference.date) {
+          latestConference = program.conference
+          // 转换为字符串格式
+          conferenceDate = latestConference.date instanceof Date 
+            ? latestConference.date.toISOString().split('T')[0] 
+            : latestConference.date
+        }
+      }
+    })
+    
+    if (conferenceDate) {
+      allRows.push({
+        DATE: conferenceDate,
+        EVENT: 'Conference',
+        _color: '#000000',
+        _order: programs.length
       })
     }
 
-    // Create worksheet data (including header row)
-    const wsData = [
-      ['DATE', 'EVENT'], // header row
-      ...dataRows.map(row => [
-        row.date.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        }),
-        row.event
-      ])
-    ]
-
-  // Create worksheet
-  const ws = XLSX.utils.aoa_to_sheet(wsData)
-
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 20 }, // DATE column width
-      { wch: 50 }  // EVENT column width
-    ]
-
-  // Set header row style (dark background, white text, bold)
-    const headerStyle = {
-      font: { bold: true, color: { rgb: 'FFFFFF' } },
-      fill: { fgColor: { rgb: '2C3E50' } },
-      alignment: { horizontal: 'center', vertical: 'center' },
-      border: {
-        top: { style: 'thin', color: { rgb: '000000' } },
-        bottom: { style: 'thin', color: { rgb: '000000' } },
-        left: { style: 'thin', color: { rgb: '000000' } },
-        right: { style: 'thin', color: { rgb: '000000' } }
+    // 按照程序顺序排序（即按 EVENT 分组）
+    allRows.sort((a, b) => {
+      if (a._order !== b._order) {
+        return a._order - b._order
       }
-    }
-
-    ws['A1'].s = headerStyle
-    ws['B1'].s = headerStyle
-
-  // Apply style to each data row
-    dataRows.forEach((row, index) => {
-      const rowNum = index + 2 // +2 because Excel rows start at 1 and there's a header row
-
-      const cellStyle = {
-        font: { color: { rgb: row.color } },
-        alignment: { horizontal: 'left', vertical: 'center' },
-        border: {
-          top: { style: 'thin', color: { rgb: 'CCCCCC' } },
-          bottom: { style: 'thin', color: { rgb: 'CCCCCC' } },
-          left: { style: 'thin', color: { rgb: 'CCCCCC' } },
-          right: { style: 'thin', color: { rgb: 'CCCCCC' } }
-        }
-      }
-
-      const dateCell = `A${rowNum}`
-      const eventCell = `B${rowNum}`
-
-      if (ws[dateCell]) ws[dateCell].s = cellStyle
-      if (ws[eventCell]) ws[eventCell].s = cellStyle
+      return new Date(a.DATE) - new Date(b.DATE)
     })
 
-  // Create workbook and export
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Timeline')
-    XLSX.writeFile(wb, 'timeline-export.xlsx')
+    // 移除用于排序的临时字段
+    const exportRows = allRows.map(({ DATE, EVENT }) => ({ DATE, EVENT }))
+    
+    const worksheet = XLSX.utils.json_to_sheet(exportRows)
+
+    // 应用颜色样式
+    allRows.forEach((row, index) => {
+      const rowIndex = index + 2;
+      
+      ['A', 'B'].forEach(col => {
+        const cellRef = `${col}${rowIndex}`
+        if (worksheet[cellRef]) {
+          worksheet[cellRef].s = {
+            font: {
+              color: { rgb: row._color.replace('#', '') }
+            }
+          }
+        }
+      })
+    })
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Timeline')
+    XLSX.writeFile(workbook, 'timeline_export.xlsx')
   }
 
-  // Assign a color to each program based on its index
+  const refreshPage = () => {
+    window.location.reload()
+  }
+
+  // Save current state to GitHub via workflow dispatch
+  const saveToGitHub = async () => {
+    try {
+      setIsSaving(true)
+      setErrorMessage('')
+
+      // Get GitHub token from environment variable
+      const githubToken = import.meta.env.VITE_GITHUB_TOKEN
+
+      if (!githubToken) {
+        throw new Error('GitHub token not configured. Please contact the administrator.')
+      }
+
+      // Convert programs back to config format
+      const configData = {
+        programs: programs.map(p => ({
+          id: p.id,
+          name: p.name,
+          timePoints: p.timePoints.map(tp => ({
+            id: tp.id,
+            name: tp.name,
+            date: tp.date.toISOString().split('T')[0]
+          }))
+        }))
+      }
+
+      // GitHub repository information (you need to update these)
+      const owner = 'liliwangvr'  // Replace with your GitHub username
+      const repo = 'ismar26'      // Replace with your repository name
+      const workflowId = 'update-timeline-config.yml'
+
+      // Trigger workflow dispatch
+      const response = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflowId}/dispatches`,
+        {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/vnd.github.v3+json',
+            'Authorization': `Bearer ${githubToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            ref: 'main',  // or your default branch name
+            inputs: {
+              config_data: JSON.stringify(configData, null, 2)
+            }
+          })
+        }
+      )
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Invalid GitHub token. Please check the VITE_GITHUB_TOKEN in repository secrets.')
+        }
+        throw new Error(`GitHub API error: ${response.status} ${response.statusText}`)
+      }
+
+      alert('✅ Configuration saved successfully!\n\nThe timeline-config.json file will be updated in a moment.\nYou can check the progress in the Actions tab of your GitHub repository.')
+      setIsLocked(true)
+    } catch (error) {
+      console.error('Failed to save to GitHub:', error)
+      setErrorMessage(`Save failed: ${error.message}`)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // 加载状态
+  if (isLoading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+      </div>
+    )
+  }
+
+  // 未登录状态
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />
+  }
+
+  const formatCurrentTime = (time) => {
+    return time.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      timeZone: 'Asia/Shanghai'
+    })
+  }
+
+  // Assign colors to programs
   const programsWithColors = programs.map((program, index) => ({
     ...program,
-    color: COLOR_POOL[index % COLOR_POOL.length],
-  }));
+    color: COLOR_POOL[index % COLOR_POOL.length].replace('#', '')
+  }))
 
   return (
     <div className="app">
@@ -262,10 +360,13 @@ function App() {
             <div className="info-icon">i</div>
             <div className="info-tooltip">
               <div className="tooltip-item">
-                <strong>Dragg:</strong> Drag red nodes to adjust the date
+                <strong>Drag:</strong> Drag red nodes to adjust the date
               </div>
               <div className="tooltip-item">
                 <strong>Double-click:</strong> Double-click red nodes to enter a specific date
+              </div>
+              <div className="tooltip-item">
+                <strong>Lock & Save:</strong> Lock the timeline and save to GitHub
               </div>
             </div>
           </div>
@@ -282,8 +383,12 @@ function App() {
               Unlock
             </button>
           ) : (
-            <button className="lock-btn" onClick={() => setIsLocked(true)}>
-              Lock
+            <button
+              className="lock-btn"
+              onClick={saveToGitHub}
+              disabled={isSaving}
+            >
+              {isSaving ? 'Saving...' : 'Lock & Save'}
             </button>
           )}
         </div>
@@ -316,3 +421,4 @@ function App() {
 }
 
 export default App
+
