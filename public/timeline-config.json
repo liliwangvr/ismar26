@@ -7,32 +7,32 @@
         {
           "id": "p1",
           "name": "Abstracts",
-          "date": "2026-03-01"
+          "date": "2026-03-09"
         },
         {
           "id": "p2",
           "name": "Full papers",
-          "date": "2026-03-01"
+          "date": "2026-03-16"
         },
         {
           "id": "p3",
           "name": "Initial notification",
-          "date": "2026-03-01"
+          "date": "2026-05-08"
         },
         {
           "id": "p4",
           "name": "Revise & Resubmit (or rebuttal)",
-          "date": "2026-03-01"
+          "date": "2026-05-22"
         },
         {
           "id": "p5",
           "name": "Final notification",
-          "date": "2026-03-01"
+          "date": "2026-06-29"
         },
         {
           "id": "p6",
           "name": "Camera-ready",
-          "date": "2026-03-01"
+          "date": "2026-07-07"
         }
       ]
     },
@@ -43,22 +43,22 @@
         {
           "id": "w1",
           "name": "Proposals",
-          "date": "2026-03-01"
+          "date": "2026-04-06"
         },
         {
           "id": "w2",
           "name": "Acceptance",
-          "date": "2026-03-01"
+          "date": "2026-05-04"
         },
         {
           "id": "w3",
           "name": "Calls for participation",
-          "date": "2026-03-01"
+          "date": "2026-05-17"
         },
         {
           "id": "w4",
           "name": "Camera-ready",
-          "date": "2026-03-01"
+          "date": "2026-07-20"
         }
       ]
     },
