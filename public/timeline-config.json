@@ -57,6 +57,11 @@
         },
         {
           "id": "w4",
+          "name": "Workshop paper due",
+          "date": "2026-06-20"
+        },
+        {
+          "id": "w5",
           "name": "Camera-ready",
           "date": "2026-07-20"
         }
