@@ -208,37 +208,37 @@ function App() {
       })
     })
 
-    // 添加 Conference 节点（只添加最后一个/最晚的 conference）
-    let latestConference = null
-    let conferenceDate = null
-    programs.forEach(program => {
-      if (program.conference) {
-        if (!latestConference || program.conference.date > latestConference.date) {
-          latestConference = program.conference
-          // 转换为字符串格式，使用 UTC 保持 AoE 时间标准
-          if (latestConference.date instanceof Date) {
-            const utcDate = new Date(Date.UTC(
-              latestConference.date.getFullYear(),
-              latestConference.date.getMonth(),
-              latestConference.date.getDate(),
-              12, 0, 0
-            ))
-            conferenceDate = utcDate.toISOString().split('T')[0]
-          } else {
-            conferenceDate = latestConference.date
-          }
-        }
-      }
-    })
+    // // 添加 Conference 节点（只添加最后一个/最晚的 conference）
+    // let latestConference = null
+    // let conferenceDate = null
+    // programs.forEach(program => {
+    //   if (program.conference) {
+    //     if (!latestConference || program.conference.date > latestConference.date) {
+    //       latestConference = program.conference
+    //       // 转换为字符串格式，使用 UTC 保持 AoE 时间标准
+    //       if (latestConference.date instanceof Date) {
+    //         const utcDate = new Date(Date.UTC(
+    //           latestConference.date.getFullYear(),
+    //           latestConference.date.getMonth(),
+    //           latestConference.date.getDate(),
+    //           12, 0, 0
+    //         ))
+    //         conferenceDate = utcDate.toISOString().split('T')[0]
+    //       } else {
+    //         conferenceDate = latestConference.date
+    //       }
+    //     }
+    //   }
+    // })
     
-    if (conferenceDate) {
-      allRows.push({
-        DATE: conferenceDate,
-        EVENT: 'Conference',
-        _color: '#000000',
-        _order: programs.length
-      })
-    }
+    // if (conferenceDate) {
+    //   allRows.push({
+    //     DATE: conferenceDate,
+    //     EVENT: 'Conference',
+    //     _color: '#000000',
+    //     _order: programs.length
+    //   })
+    // }
 
     // 按照程序顺序排序（即按 EVENT 分组）
     allRows.sort((a, b) => {
