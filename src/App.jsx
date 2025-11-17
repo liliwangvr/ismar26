@@ -163,7 +163,6 @@ function App() {
 
         // Group rows by program (process in order)
         const programsMap = new Map()
-        let globalConferenceDate = null // 全局 Conference 日期，作为所有 Program 的 DDL
 
         jsonData.forEach((row, index) => {
           if (!row.DATE || !row.EVENT) {
@@ -177,59 +176,40 @@ function App() {
             throw new Error(`Invalid date format on row ${index + 2}: "${row.DATE}"`)
           }
 
-          // Check if this is a Conference row
-          if (row.EVENT.trim() === 'Conference') {
-            // Conference 是全局的，作为所有 Program 的 DDL
-            globalConferenceDate = date
-          } else {
-            // Parse EVENT field: format is "ProgramName - EventName"
-            const eventParts = row.EVENT.split(' - ')
-            if (eventParts.length < 2) {
-              throw new Error(`Invalid EVENT format on row ${index + 2}; expected "ProgramName - EventName" or "Conference"`)
-            }
-
-            const programName = eventParts[0].trim()
-            const eventName = eventParts.slice(1).join(' - ').trim()
-
-            // Add to the corresponding program
-            if (!programsMap.has(programName)) {
-              programsMap.set(programName, { events: [] })
-            }
-
-            // This is a regular event
-            programsMap.get(programName).events.push({
-              id: `${programName.toLowerCase().replace(/\s+/g, '-')}-${index}`,
-              name: eventName,
-              date: date
-            })
+          // Parse EVENT field: format is "ProgramName - EventName"
+          const eventParts = row.EVENT.split(' - ')
+          if (eventParts.length < 2) {
+            throw new Error(`Invalid EVENT format on row ${index + 2}; expected "ProgramName - EventName"`)
           }
+
+          const programName = eventParts[0].trim()
+          const eventName = eventParts.slice(1).join(' - ').trim()
+
+          // Add to the corresponding program
+          if (!programsMap.has(programName)) {
+            programsMap.set(programName, { events: [] })
+          }
+
+          programsMap.get(programName).events.push({
+            id: `${programName.toLowerCase().replace(/\s+/g, '-')}-${index}`,
+            name: eventName,
+            date: date
+          })
         })
+
+        // Fixed conference date for all programs
+        const fixedConferenceDate = new Date('2026-08-31')
 
         // Convert to the format required by the app
         const loadedPrograms = Array.from(programsMap.entries()).map(([programName, data], index) => {
           // Sort timePoints by date
           data.events.sort((a, b) => a.date - b.date)
 
-          let conferenceNode = null
-
-          // 如果有全局 Conference 日期，使用它作为所有 Program 的 DDL
-          if (globalConferenceDate) {
-            conferenceNode = {
-              id: `${programName.toLowerCase().replace(/\s+/g, '-')}-conference`,
-              name: 'Conference',
-              date: globalConferenceDate
-            }
-          } else if (data.events.length > 0) {
-            // 如果没有全局 Conference，自动计算 DDL
-            const lastDate = new Date(data.events[data.events.length - 1].date)
-            const autoDDL = new Date(lastDate)
-            autoDDL.setDate(autoDDL.getDate() + 30)
-
-            conferenceNode = {
-              id: `${programName.toLowerCase().replace(/\s+/g, '-')}-conference`,
-              name: 'Conference',
-              date: autoDDL
-            }
+          // Use fixed conference date
+          const conferenceNode = {
+            id: `${programName.toLowerCase().replace(/\s+/g, '-')}-conference`,
+            name: 'Conference',
+            date: fixedConferenceDate
           }
 
           return {
@@ -237,7 +217,7 @@ function App() {
             name: programName,
             timePoints: data.events,
             conference: conferenceNode,
-            ddl: conferenceNode ? conferenceNode.date : null
+            ddl: conferenceNode.date
           }
         })
 
