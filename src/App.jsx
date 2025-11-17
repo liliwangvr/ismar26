@@ -23,6 +23,7 @@ function App() {
   const [errorMessage, setErrorMessage] = useState('')
   const [isLocked, setIsLocked] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const fileInputRef = useRef(null)
 
 
   const processConfig = (config) => {
@@ -123,11 +124,140 @@ function App() {
         setToday(new Date('2026-03-01'))
       }
 
-      
+
     } catch (error) {
       console.error('Failed to load config file:', error)
       setErrorMessage(`Load failed: ${error.message}`)
     }
+  }
+
+  // Import data from Excel
+  const handleExcelUpload = (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    setErrorMessage('')
+    const reader = new FileReader()
+
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result)
+        const workbook = XLSX.read(data, { type: 'array' })
+
+        // Read the first worksheet
+        const sheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[sheetName]
+
+        // Convert worksheet to JSON
+        const jsonData = XLSX.utils.sheet_to_json(worksheet)
+
+        if (!jsonData || jsonData.length === 0) {
+          throw new Error('Excel file is empty or has invalid format')
+        }
+
+        // Validate required columns
+        const firstRow = jsonData[0]
+        if (!firstRow.DATE || !firstRow.EVENT) {
+          throw new Error('Excel file must contain DATE and EVENT columns')
+        }
+
+        // Group rows by program (process in order)
+        const programsMap = new Map()
+        let globalConferenceDate = null // 全局 Conference 日期，作为所有 Program 的 DDL
+
+        jsonData.forEach((row, index) => {
+          if (!row.DATE || !row.EVENT) {
+            console.warn(`Skipping row ${index + 2}: missing required fields`)
+            return
+          }
+
+          // Parse date
+          const date = new Date(row.DATE)
+          if (isNaN(date.getTime())) {
+            throw new Error(`Invalid date format on row ${index + 2}: "${row.DATE}"`)
+          }
+
+          // Check if this is a Conference row
+          if (row.EVENT.trim() === 'Conference') {
+            // Conference 是全局的，作为所有 Program 的 DDL
+            globalConferenceDate = date
+          } else {
+            // Parse EVENT field: format is "ProgramName - EventName"
+            const eventParts = row.EVENT.split(' - ')
+            if (eventParts.length < 2) {
+              throw new Error(`Invalid EVENT format on row ${index + 2}; expected "ProgramName - EventName" or "Conference"`)
+            }
+
+            const programName = eventParts[0].trim()
+            const eventName = eventParts.slice(1).join(' - ').trim()
+
+            // Add to the corresponding program
+            if (!programsMap.has(programName)) {
+              programsMap.set(programName, { events: [] })
+            }
+
+            // This is a regular event
+            programsMap.get(programName).events.push({
+              id: `${programName.toLowerCase().replace(/\s+/g, '-')}-${index}`,
+              name: eventName,
+              date: date
+            })
+          }
+        })
+
+        // Convert to the format required by the app
+        const loadedPrograms = Array.from(programsMap.entries()).map(([programName, data], index) => {
+          // Sort timePoints by date
+          data.events.sort((a, b) => a.date - b.date)
+
+          let conferenceNode = null
+
+          // 如果有全局 Conference 日期，使用它作为所有 Program 的 DDL
+          if (globalConferenceDate) {
+            conferenceNode = {
+              id: `${programName.toLowerCase().replace(/\s+/g, '-')}-conference`,
+              name: 'Conference',
+              date: globalConferenceDate
+            }
+          } else if (data.events.length > 0) {
+            // 如果没有全局 Conference，自动计算 DDL
+            const lastDate = new Date(data.events[data.events.length - 1].date)
+            const autoDDL = new Date(lastDate)
+            autoDDL.setDate(autoDDL.getDate() + 30)
+
+            conferenceNode = {
+              id: `${programName.toLowerCase().replace(/\s+/g, '-')}-conference`,
+              name: 'Conference',
+              date: autoDDL
+            }
+          }
+
+          return {
+            id: programName.toLowerCase().replace(/\s+/g, '-'),
+            name: programName,
+            timePoints: data.events,
+            conference: conferenceNode,
+            ddl: conferenceNode ? conferenceNode.date : null
+          }
+        })
+
+        setPrograms(loadedPrograms)
+      } catch (error) {
+        console.error('Excel parsing failed:', error)
+        setErrorMessage(`Excel parsing failed: ${error.message}`)
+      }
+    }
+
+    reader.onerror = () => {
+      setErrorMessage('File read failed, please try again')
+    }
+
+    reader.readAsArrayBuffer(file)
+  }
+
+  // Trigger file input
+  const triggerFileInput = () => {
+    fileInputRef.current?.click()
   }
 
 
@@ -426,6 +556,9 @@ function App() {
           <button className="refresh-btn" onClick={loadConfig}>
             Restore
           </button>
+          <button className="refresh-btn" onClick={triggerFileInput}>
+            Import
+          </button>
           <button className="export-btn" onClick={exportToExcel}>
             Export
           </button>
@@ -444,6 +577,15 @@ function App() {
           )}
         </div>
       </div>
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        onChange={handleExcelUpload}
+        style={{ display: 'none' }}
+      />
 
       {/* Error message display */}
       {errorMessage && (
